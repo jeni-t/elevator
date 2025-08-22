@@ -21,6 +21,10 @@
       const ELEVATOR_ID = "ELEV-001";
       const FLOORS = 5;
       const FLOOR_HEIGHT = 2.0;
+        let elevatorState = "stop";
+let targetFloor = null;
+let floorHeights = [0, 2, 4, 6, 8, 10]; // G, 1, 2, 3, 4, 5 floor Y positions
+let doorOpen = true; // start with door open
 
       const socket = io(SOCKET_URL);
       socket.on('connect', ()=>{ console.log('socket connected'); socket.emit('joinElevator', ELEVATOR_ID); });
@@ -115,47 +119,69 @@
       const floorLabels = ['G','1','2','3','4'];
       for (let i=0;i<FLOORS;i++){
         const btn = BABYLON.GUI.Button.CreateSimpleButton('b'+i, floorLabels[i]);
-        btn.width="50px"; btn.height="40px"; btn.color="white"; btn.background="blue";
-        btn.top = `${10 + i*50}px`; btn.left = "-600px"; btn.cornerRadius = 20;
-        ((j)=>btn.onPointerClickObservable.add(()=> sendMoveTo(j)))(i);
+        btn.width="50px"; 
+        btn.height="40px";
+        btn.color="white"; 
+        btn.background="blue";
+        btn.top = `${10 + i*50}px`; 
+        btn.left = "-600px"; 
+        btn.cornerRadius = 20;
+        ((j)=>btn.onPointerClickObservable.add(()=> 
+        sendMoveTo(j)))(i);
+        console.log("work")
         gui.addControl(btn);
       }
 
       // monitoring panel
       const panelUI = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI('mon');
-      const panel = new BABYLON.GUI.StackPanel(); panel.width="260px"; panel.top="-220px"; panel.left="-120px"; panel.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT; panel.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+      const panel = new BABYLON.GUI.StackPanel(); 
+      panel.width="260px"; 
+      panel.top="-220px"; 
+      panel.left="-120px"; 
+      panel.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT; panel.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
       panelUI.addControl(panel);
-      const header = new BABYLON.GUI.TextBlock(); header.text="Elevator Monitoring"; header.height="30px"; header.color="white"; header.fontSize=20; panel.addControl(header);
-      const stateText = new BABYLON.GUI.TextBlock(); const tempText = new BABYLON.GUI.TextBlock(); const ropeText = new BABYLON.GUI.TextBlock(); const doorText = new BABYLON.GUI.TextBlock(); const posText = new BABYLON.GUI.TextBlock();
-      [stateText,tempText,ropeText,doorText,posText].forEach(t=>{ t.height="25px"; t.color="white"; t.fontSize=14; panel.addControl(t); });
+      
+      const header = new BABYLON.GUI.TextBlock(); 
+      header.text="Elevator Monitoring"; 
+      header.height="30px"; 
+      header.color="black"; 
+      header.fontSize=20; 
+      panel.addControl(header);
+      const stateText = new BABYLON.GUI.TextBlock(); 
+      const tempText = new BABYLON.GUI.TextBlock(); 
+      const ropeText = new BABYLON.GUI.TextBlock(); 
+      const doorText = new BABYLON.GUI.TextBlock(); 
+      const posText = new BABYLON.GUI.TextBlock();
+      [stateText,tempText,ropeText,doorText,posText].forEach(t=>{ t.height="25px"; t.color="black"; t.fontSize=14; panel.addControl(t); });
 
       let elevatorMoving = false;
 let doorOpenAmount = 1; // 1 = fully open, 0 = fully closed
 let liftMoving = false;
+
       scene.onBeforeRenderObservable.add(()=> {
         if (lift && lastTelemetry && typeof lastTelemetry.positionY === 'number') {
           const targetY = lastTelemetry.positionY;
           lift.position.y += (targetY - lift.position.y) * 0.3;
           let liftdoorLeft = scene.getNodeByName("right-door_Cube.001_primitive0");
             let rightdoorLeft = scene.getNodeByName("right-door_Cube.001_primitive1");
-            liftdoorLeft.position.x = 80
-            rightdoorLeft.position.x = -80
+            liftdoorLeft.position.x = 0
+            rightdoorLeft.position.x = 0
         } else if (lift && desiredTargetFloor !== null) {
           const target = desiredTargetFloor * FLOOR_HEIGHT;
           if (Math.abs(lift.position.y - target) > 0.02) {
             const d = target > lift.position.y ? 0.02 : -0.02;
-            lift.position.y += d;
-            
+            lift.position.y += d;   
             console.log("ho")
           } else {
             lift.position.y = target;
             desiredTargetFloor = null;
-            //  let liftdoorLeft = scene.getNodeByName("right-door_Cube.001_primitive0");
-            // let rightdoorLeft = scene.getNodeByName("right-door_Cube.001_primitive1");
-            // liftdoorLeft.position.x = 80
-            // rightdoorLeft.position.x = -80
+             let liftdoorLeft = scene.getNodeByName("right-door_Cube.001_primitive0");
+            let rightdoorLeft = scene.getNodeByName("right-door_Cube.001_primitive1");
+            liftdoorLeft.position.x = 80
+            rightdoorLeft.position.x = -80
           }
         }
+        
 
         const doorIsOpen = (lastTelemetry && lastTelemetry.doorStatus === 'open') || (!lastTelemetry && desiredTargetFloor === null);
         if (doorLeft && doorRight) {
@@ -165,6 +191,17 @@ let liftMoving = false;
             // rightdoorLeft.position.x = 0
           const leftTarget = doorIsOpen ? 0 : 0.55;
           const rightTarget = doorIsOpen ? 0 : -0.55;
+          if(leftTarget){
+            let liftdoorLeft = scene.getNodeByName("right-door_Cube.001_primitive0");
+             let rightdoorLeft = scene.getNodeByName("right-door_Cube.001_primitive1");
+              liftdoorLeft.position.x = 0
+             rightdoorLeft.position.x = 0
+          }else if(!leftTarget){
+let liftdoorLeft = scene.getNodeByName("right-door_Cube.001_primitive0");
+             let rightdoorLeft = scene.getNodeByName("right-door_Cube.001_primitive1");
+              liftdoorLeft.position.x = 80
+             rightdoorLeft.position.x = -80
+          }
           liftdoorLeft.position.x += (leftTarget - doorLeft.position.x) * 0.2;
           rightdoorLeft.position.x += (rightTarget - doorRight.position.x) * 0.2;
         }
