@@ -1,0 +1,214 @@
+<!doctype html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+        <title>Babylon.js sample code</title>
+
+        <!-- Babylon.js -->
+        <script src="js/dat.gui.min.js"></script>
+        <script src="js/ammo.js"></script>
+        <script src="js/cannon.js"></script>
+        <script src="js/Oimo.js"></script>
+        <script src="js/earcut.min.js"></script>
+        <script src="babylon.js"></script>
+        <script src="js/babylonjs.materials.min.js"></script>
+        <script src="js/babylonjs.proceduralTextures.min.js"></script>
+        <script src="js/babylonjs.postProcess.min.js"></script>
+        <script src="js/babylonjs.loaders.js"></script>
+        <script src="js/babylonjs.serializers.min.js"></script>
+        <script src="js/babylon.gui.min.js"></script>
+        <script src="js/babylon.inspector.bundle.js"></script>
+
+        <style>
+            html,
+            body {
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+
+            #renderCanvas {
+                width: 100%;
+                height: 100%;
+                touch-action: none;
+            }
+
+            #canvasZone {
+                width: 100%;
+                height: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="canvasZone"><canvas id="renderCanvas"></canvas></div>
+        <script>
+    let elevatorState = "stop";
+let targetFloor = null;
+let floorHeights = [0, 2, 4, 6, 8, 10]; // G, 1, 2, 3, 4, 5 floor Y positions
+let lift;
+let doorLeft
+ let doorRight
+                    var canvas = document.getElementById("renderCanvas");
+
+                    var startRenderLoop = function (engine, canvas) {
+                        engine.runRenderLoop(function () {
+                            if (sceneToRender && sceneToRender.activeCamera) {
+                                sceneToRender.render();
+                            }
+                        });
+                    }
+
+                    var engine = null;
+        var scene = null;
+        var sceneToRender = null;
+        var createDefaultEngine = function() { return new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true,  disableWebGL2Support: false}); };
+        var createScene = function () {
+    // This creates a basic Babylon Scene object (non-mesh)
+    var scene = new BABYLON.Scene(engine);
+
+    // This creates and positions a free camera (non-mesh)
+    camera = new BABYLON.ArcRotateCamera("camera1", 0, 0, 0, new BABYLON.Vector3(0, 3, 0), scene);
+			
+            camera.setPosition(new BABYLON.Vector3(20, 5, 5));
+            camera.attachControl(canvas, true);
+
+    // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
+    var light = new BABYLON.PointLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+
+    // Default intensity is 1. Let's dim the light a small amount
+    light.intensity = 1.0;
+    
+
+    var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+			var gui = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("myUI");
+		
+		var inspector = BABYLON.GUI.Button.CreateSimpleButton("inspector", "inspector");
+    inspector.top = "30%";
+	inspector.left = "43%";
+	inspector.width = "90px";
+	inspector.height = "40px";
+	inspector.color = "white";
+	inspector.background = "transparent";
+	inspector.cornerRadius = 5;
+	inspector.onPointerClickObservable.add(function () {
+	scene.debugLayer.show();
+		
+	})
+
+	gui.addControl(inspector);
+
+    BABYLON.SceneLoader.ImportMesh("","scenes/", "right_door.glb", scene, function (meshes) { 
+         let door = meshes[0]
+        door.position.x = 2
+    })
+
+    // Our built-in 'sphere' shape.
+    BABYLON.SceneLoader.ImportMesh("","scenes/", "lift_model.glb", scene, function (meshes) { 
+         lift = meshes[0]
+        lift.scaling = new BABYLON.Vector3(2,2,2)
+        lift.position.y = 0; // Start at ground floor
+        let elevatorY = 0;
+         doorLeft = scene.getNodeByName("Object_84");
+     doorRight = scene.getNodeByName("Object_86");
+     doorLeft.dispose(); 
+     doorRight.dispose(); 
+
+    if (doorLeft && doorRight) {
+        console.log("Doors loaded!");
+    }
+    
+// scene.onBeforeRenderObservable.add(() => {
+//     if (elevatorY < 10) {
+//         lift.position.y += 0.02; // move up
+//         elevatorY += 0.02;
+//     }
+// });
+// let elevatorState = "stop"; // start, stop, problem
+
+// scene.onBeforeRenderObservable.add(() => {
+//     if (elevatorState === "start") {
+//         lift.position.y += 0.02;
+//     }
+// });
+
+       // var mesh = scene.getMeshByName("Mercedes Benz GLS 580_primitive0")
+        //console.log(mesh.name)
+    })
+    
+
+var gui = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("myUI");
+
+const floorLabels = ["G", "1", "2", "3", "4", "5"];
+
+floorLabels.forEach((label, index) => {
+    let floorBtn = BABYLON.GUI.Button.CreateSimpleButton(`floor${label}`, `FLOOR ${label}`);
+    floorBtn.width = "150px";
+    floorBtn.height = "40px";
+    floorBtn.color = "white";
+    floorBtn.background = "blue";
+    floorBtn.top = `${50 + (index * 50)}px`;
+    floorBtn.left = "-300px";
+
+    floorBtn.onPointerClickObservable.add(() => {
+        targetFloor = index;
+        elevatorState = "start";
+    });
+    gui.addControl(floorBtn);
+});
+
+// Elevator Movement Logic
+scene.onBeforeRenderObservable.add(() => {
+    if (elevatorState === "start" && lift && targetFloor !== null) {
+        let targetY = floorHeights[targetFloor];
+
+        // Ensure ground floor can trigger movement
+        if (Math.abs(lift.position.y - targetY) > 0.02) {
+            let direction = targetY > lift.position.y ? 0.02 : -0.02;
+            lift.position.y += direction;
+        } else {
+            lift.position.y = targetY; 
+            elevatorState = "stop";
+            targetFloor = null;
+        }
+    }
+});
+
+
+scene.clearColor = new BABYLON.Color3(0.7, 0.7, 0.8);
+    return scene;
+};
+                window.initFunction = async function() {
+                    
+                    
+                    
+                    var asyncEngineCreation = async function() {
+                        try {
+                        return createDefaultEngine();
+                        } catch(e) {
+                        console.log("the available createEngine function failed. Creating the default engine instead");
+                        return createDefaultEngine();
+                        }
+                    }
+
+                    window.engine = await asyncEngineCreation();
+                    
+                    const engineOptions = window.engine.getCreationOptions?.();
+                    if (!engineOptions || engineOptions.audioEngine !== false) {
+                        
+                    }
+        if (!engine) throw 'engine should not be null.';
+        startRenderLoop(engine, canvas);
+        window.scene = createScene();};
+        initFunction().then(() => {sceneToRender = scene
+                    });
+
+                    // Resize
+                    window.addEventListener("resize", function () {
+                        engine.resize();
+                    });
+        </script>
+    </body>
+</html>
